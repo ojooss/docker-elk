@@ -42,6 +42,8 @@ services:
         read_only: true
     ports:
       - "5000:5000"
+      - "5044:5044"
+      - "5045:5045"
       - "9600:9600"
     environment:
       LS_JAVA_OPTS: "-Xmx256m -Xms256m"
@@ -66,6 +68,39 @@ services:
       - elk
     depends_on:
       - elasticsearch
+
+  filebeat:
+    image: bargenson/filebeat
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock
+    environment:
+      - LOGSTASH_HOST=logstash
+      - LOGSTASH_PORT=5044
+      - SHIPPER_NAME=aWonderfulName
+    networks:
+      - elk
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx:/var/log/nginx
+    networks:
+      - elk
+
+  filebeat2:
+    image: docker.elastic.co/beats/filebeat:7.2.0
+    volumes:
+      - ./nginx:/var/log/nginx
+    command: >
+      ./filebeat -e -c /etc/motd
+      -E "filebeat.inputs=[{type:log,paths:['/var/log/nginx/access.log','/var/log/nginx/error.log']}]"
+      -E "output.logstash.hosts=['logstash:5045']"
+    networks:
+      - elk
+
 
 networks:
   elk:
